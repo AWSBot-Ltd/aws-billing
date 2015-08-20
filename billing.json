@@ -1,0 +1,231 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Creates an s3 billing bucket and policy.",
+    "Parameters": {
+        "DomainName": {
+            "Type": "String",
+            "Description": "The registered DNS domain name for this application, e.g. example.com"
+        },
+        "EmailAddress": {
+            "Type": "String",
+            "Description": "The email address to send Billing Alarm notifcations to."
+        },
+        "Threshold": {
+            "Type": "Number",
+            "Description": "The value in USD that triggers a CloudWatch Alarm/Email when breached."
+        }
+    },
+    "Mappings": {
+        "RegionMap": {
+            "us-east-1": {
+                "ZoneId": "Z3AQBSTGFYJSTF",
+                "Region": "US Standard",
+                "EndPoint": "s3-website-us-east-1.amazonaws.com"
+            },
+            "us-west-1": {
+                "ZoneId": "Z2F56UZL2M1ACD",
+                "Region": "US West (N. California)",
+                "EndPoint": "s3-website-us-west-1.amazonaws.com"
+            },
+            "us-west-2": {
+                "ZoneId": "Z3BJ6K6RIION7M",
+                "Region": "US West (Oregon)",
+                "EndPoint": "s3-website-us-west-2.amazonaws.com"
+            },
+            "eu-west-1": {
+                "ZoneId": "Z1BKCTXD74EZPE",
+                "Region": "EU (Ireland)",
+                "EndPoint": "s3-website-eu-west-1.amazonaws.com"
+            },
+            "eu-central-1": {
+                "ZoneId": "Z21DNDUVLTQW6Q",
+                "Region": "EU (Frankfurt)",
+                "EndPoint": "s3-website-eu-central-1.amazonaws.com"
+            },
+            "ap-southeast-1": {
+                "ZoneId": "Z1WCIGYICN2BYD",
+                "Region": "Asia Pacific (Sydney)",
+                "EndPoint": "s3-website-ap-southeast-2.amazonaws.com"
+            },
+            "ap-northeast-1": {
+                "ZoneId": "Z2M4EHUR26P7ZW",
+                "Region": "Asia Pacific (Tokyo)",
+                "EndPoint": "s3-website-ap-northeast-1.amazonaws.com"
+            },
+            "sa-east-1": {
+                "ZoneId": "Z7KQH4QJS55SO",
+                "Region": "South America (Sao Paulo)",
+                "EndPoint": "s3-website-sa-east-1.amazonaws.com"
+            }
+        }
+    },
+    "Resources": {
+        "BucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+                "PolicyDocument": {
+                    "Version": "2008-10-17",
+                    "Id": "BillingBucketPolicy",
+                    "Statement": [
+                        {
+                            "Sid": "GetObjectBillingBucket",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "arn:aws:iam::",
+                                            {
+                                                "Ref": "AWS::AccountId"
+                                            },
+                                            ":root"
+                                        ]
+                                    ]
+                                }
+                            },
+                            "Action": [
+                                "s3:GetBucketAcl",
+                                "s3:GetBucketPolicy"
+                            ],
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        "billing.",
+                                        {
+                                            "Ref": "DomainName"
+                                        }
+                                    ]
+                                ]
+                            }
+                        },
+                        {
+                            "Sid": "PutObjectBillingBucket",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "arn:aws:iam::",
+                                            {
+                                                "Ref": "AWS::AccountId"
+                                            },
+                                            ":root"
+                                        ]
+                                    ]
+                                }
+                            },
+                            "Action": "s3:PutObject",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        "billing.",
+                                        {
+                                            "Ref": "DomainName"
+                                        },
+                                        "/*"
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "Bucket": {
+                    "Ref": "BillingBucket"
+                }
+            }
+        },
+        "BillingBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "AccessControl": "Private",
+                "BucketName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "billing.",
+                            {
+                                "Ref": "DomainName"
+                            }
+                        ]
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    "billing.",
+                                    {
+                                        "Ref": "DomainName"
+                                    }
+                                ]
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "BillingAlarm": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "ActionsEnabled": "true",
+                "AlarmActions": [
+                    {
+                        "Ref": "BillingTopic"
+                    }
+                ],
+                "AlarmDescription": "Triggers an Alarm/EMail when the EstimatedCharges are greater than 100 USD for 6 hours.",
+                "AlarmName": "BillingAlarm",
+                "ComparisonOperator": "GreaterThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "Currency",
+                        "Value": "USD"
+                    }
+                ],
+                "EvaluationPeriods": "1",
+                "MetricName": "EstimatedCharges",
+                "Namespace": "AWS/Billing",
+                "Period": "21600",
+                "Statistic": "Maximum",
+                "Threshold": {
+                    "Ref": "Threshold"
+                }
+            }
+        },
+        "BillingTopic": {
+            "Type": "AWS::SNS::Topic",
+            "Properties": {
+                "DisplayName": "BillingTopic",
+                "Subscription": [
+                    {
+                        "Endpoint": {
+                            "Ref": "EmailAddress"
+                        },
+                        "Protocol": "email"
+                    }
+                ],
+                "TopicName": "BillingAlarms"
+            }
+        }
+    },
+    "Outputs": {
+        "S3WebsiteURL": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "BillingBucket",
+                    "WebsiteURL"
+                ]
+            },
+            "Description": "URL for website hosted on S3"
+        }
+    }
+}
