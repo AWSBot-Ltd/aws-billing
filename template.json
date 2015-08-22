@@ -71,18 +71,7 @@
                             "Sid": "GetObjectBillingBucket",
                             "Effect": "Allow",
                             "Principal": {
-                                "AWS": {
-                                    "Fn::Join": [
-                                        "",
-                                        [
-                                            "arn:aws:iam::",
-                                            {
-                                                "Ref": "AWS::AccountId"
-                                            },
-                                            ":root"
-                                        ]
-                                    ]
-                                }
+                                "AWS": "arn:aws:iam::386209384616:root"
                             },
                             "Action": [
                                 "s3:GetBucketAcl",
@@ -105,18 +94,7 @@
                             "Sid": "PutObjectBillingBucket",
                             "Effect": "Allow",
                             "Principal": {
-                                "AWS": {
-                                    "Fn::Join": [
-                                        "",
-                                        [
-                                            "arn:aws:iam::",
-                                            {
-                                                "Ref": "AWS::AccountId"
-                                            },
-                                            ":root"
-                                        ]
-                                    ]
-                                }
+                              "AWS": "arn:aws:iam::386209384616:root"
                             },
                             "Action": "s3:PutObject",
                             "Resource": {
